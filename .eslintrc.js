@@ -7,7 +7,8 @@ module.exports = {
   'extends': ['eslint:recommended', 'plugin:react/recommended'],
   'globals': {
     'it': true,
-    'expect': true
+    'expect': true,
+    'beforeEach': true
   },
   'parserOptions': {
     'ecmaFeatures': {
