@@ -8,13 +8,16 @@ module.exports = {
   'globals': {
     'it': true,
     'expect': true,
-    'beforeEach': true
+    'beforeEach': true,
+    'afterEach': true,
+    'describe': true
   },
+  'parser': 'babel-eslint',
   'parserOptions': {
     'ecmaFeatures': {
       'jsx': true
     },
-    'ecmaVersion': 2018,
+    'ecmaVersion': 2019,
     'sourceType': 'module'
   },
   'plugins': ['react'],
