@@ -26,6 +26,7 @@ module.exports = {
     'react/jsx-pascal-case': ['error'],
     'react/jsx-closing-tag-location': 2,
     'react/self-closing-comp': 'error',
+    // 'react/prop-types': 'off',
     'accessor-pairs': 2,
     'arrow-spacing': [
       2,
