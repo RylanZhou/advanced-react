@@ -2,6 +2,8 @@ import React, { Component } from 'react'
 import PropTypes from 'prop-types'
 
 import { connect } from 'react-redux'
+
+import requireAuth from './requireAuth'
 import * as actions from '../actions'
 
 class CommentBox extends Component {
@@ -53,4 +55,4 @@ class CommentBox extends Component {
 
 // No need to convert any global state to props, so leave it to null
 // We will take all dispatch functions for props, so pass actions
-export default connect(null, actions)(CommentBox)
+export default connect(null, actions)(requireAuth(CommentBox))
