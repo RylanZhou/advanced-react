@@ -9,7 +9,7 @@ class CommentList extends Component {
   }
 
   renderComments = () =>
-    this.props.comments.map((comment) => <li key={comment}>{comment}</li>)
+    this.props.comments.map((comment, index) => <li key={index}>{comment}</li>)
 
   render() {
     return (

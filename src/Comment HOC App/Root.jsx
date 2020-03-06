@@ -3,14 +3,16 @@ import PropTypes from 'prop-types'
 
 import { Provider } from 'react-redux'
 import { createStore, applyMiddleware } from 'redux'
-import reduxPromise from 'redux-promise'
+// import reduxPromise from 'redux-promise'
+import asyncMiddleware from './Middlewares/async'
+import stateMiddleware from './Middlewares/stateValidator'
 import reducers from './reducers'
 
 export default function Root({ initialState = {}, children }) {
   const store = createStore(
     reducers,
     initialState,
-    applyMiddleware(reduxPromise)
+    applyMiddleware(asyncMiddleware, stateMiddleware)
   )
   return (
     // For global state just initialize it to an empty object
