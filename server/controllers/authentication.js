@@ -50,3 +50,15 @@ exports.signup = async (request, response, next) => {
     })
   }
 }
+
+/**
+ * @description User Sign In
+ * @route       POST /api/auth/signin
+ * @access      Public
+ */
+exports.signin = async (request, response, next) => {
+  // User has already had their email and password authed.
+  // So we just need to give back the token
+  // user instance has been put into request by passport
+  response.send({ token: tokenForUser(request.user) })
+}

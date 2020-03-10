@@ -1,7 +1,40 @@
 const passport = require('passport')
 const { Strategy: JwtStrategy, ExtractJwt } = require('passport-jwt')
+const LocalStrategy = require('passport-local')
 const config = require('../config')
 const User = require('../models/user')
+
+// Set up options for local strategy
+const localOptions = {
+  // By default, LocalStrategy will look for username and password. If we want to use email instead, add the line below.
+  usernameField: 'email'
+}
+
+// Create local strategy
+const localLogin = new LocalStrategy(localOptions, (email, password, done) => {
+  // Verify this username and password
+  User.findOne({ email }, (error, user) => {
+    if (error) {
+      return done(error)
+    }
+    if (!user) {
+      return done(null, false)
+    }
+
+    // Compare passwords
+    user.comparePassword(password, (error, isMatch) => {
+      if (error) {
+        return done(error)
+      }
+      if (!isMatch) {
+        return done(null, false)
+      }
+      return done(null, user)
+    })
+  })
+  // If it is the correct username and password
+  // Otherwise, call done with false
+})
 
 // Set up options for JWT strategy
 const jwtOptions = {
@@ -13,7 +46,7 @@ const jwtOptions = {
 
 // Create JWT strategy
 // payload is the decoded JWT data
-const jwtLogin = new JwtStrategy(jwtOptions, (payload, done) => {
+const jwtSignUp = new JwtStrategy(jwtOptions, (payload, done) => {
   // The structure of payload is pretty much the same as in the tokenForUser() in authentication.js
   User.findById(payload.sub, (error, user) => {
     if (error) {
@@ -30,4 +63,5 @@ const jwtLogin = new JwtStrategy(jwtOptions, (payload, done) => {
 })
 
 // Tell passport to use this strategy
-passport.use(jwtLogin)
+passport.use(jwtSignUp)
+passport.use(localLogin)
