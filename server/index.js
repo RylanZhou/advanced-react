@@ -1,6 +1,7 @@
 // Main starting point of the server
 const express = require('express')
 const morgan = require('morgan')
+const cors = require('cors')
 const app = express()
 
 const router = require('./router')
@@ -11,6 +12,7 @@ connectDB()
 
 // App Setup
 app.use(morgan('combined')) // Logging framework
+app.use(cors()) // Allows request from anywhere
 app.use(express.json({ type: '*/*' })) // Parse incoming requests into JSON, no matter what the type is.
 router(app)
 

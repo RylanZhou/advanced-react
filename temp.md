@@ -1,97 +1,375 @@
-### 4.3 Password Encrypt
+## 5. Client Auth
 
-If a password in the database is visible, it's a tremendous false. So we have to use `bcrypt-nodejs` to encrypt the password. In `/models/user.js`, we will wire up this library in the save hook. Add this block of code under `userSchema`:
+Two more dependencies are needed: `redux-form`, `redux-thunk`.
+
+`redux-thunk` is a middleware that allows us to action creators like:
 
 ```javascript
-// On save hook, encrypt password
-userSchema.pre('save', function(next) {
-  // Get access to the user model
-  const user = this
-  try {
-    const salt = bcrypt.genSaltSync(10)
-    // Encrypt the password using the salt
-    const hash = bcrypt.hashSync(user.password, salt, null)
-    // Overwrite
-    user.password = hash
-    // Go ahead and save the model
-    next()
-  } catch (error) {
-    console.log(error)
-    next(error)
+export const signup = ({ email, password }) => (dispatch) => {
+  // ... Total control of dispatch. We can dispatch actions multiple times
+}
+```
+
+Instead of:
+
+```javascript
+export const signup = ({ email, password }) => {
+  // ... axios
+  return { payload: data }
+}
+```
+
+### 5.1 `redux-form` & `redux-thunk` Set Up
+
+#### 5.1.1 Use `redux-form`
+
+We are going to build a sign up form using redux-form.
+
+First, to use redux-form, we have to combine the reducer provided by redux-form with others.
+
+`reducers/index.js`
+
+```javascript
+import { combineReducers } from 'redux'
+import { reducer as formReducer } from 'redux-form'
+import authReducer from './auth'
+
+export default combineReducers({
+  auth: authReducer,
+  form: formReducer // ! Must name as form
+})
+```
+
+Then, use the `<Field>` component to build input fields.
+
+`Components/Signup.jsx`
+
+```jsx
+import { reduxForm, Field } from 'redux-form'
+
+class Signup extends Component {
+  static propTypes = {
+    handleSubmit: PropTypes.func
   }
+
+  onSubmit = (formProps) => {
+    console.log(formProps)
+  }
+
+  render() {
+    const { handleSubmit } = this.props // Provided by redux-form
+
+    return (
+      <form onSubmit={handleSubmit(this.onSubmit)}>
+        <fieldset>
+          <label>Username</label>
+          <Field
+            name="username"
+            type="text"
+            component="input"
+            autoComplete="none"
+          />
+        </fieldset>
+        <fieldset>
+          <label>Email</label>
+          <Field
+            name="email"
+            type="text"
+            component="input"
+            autoComplete="none"
+          />
+        </fieldset>
+        <fieldset>
+          <label>Password</label>
+          <Field
+            name="password"
+            type="password"
+            component="input"
+            autoComplete="none"
+          />
+        </fieldset>
+        <button>Sign Up!</button>
+      </form>
+    )
+  }
+}
+
+export default reduxForm({ form: 'signup' })(Signup)
+```
+
+#### 5.1.2 Use `redux-thunk`
+
+Just like using other middlewares, simply put it into the middleware parameter when calling `createStore`.
+
+`index.jsx`
+
+```javascript
+import reduxThunk from 'redux-thunk'
+
+const store = createStore(reducers, {}, applyMiddleware(reduxThunk))
+```
+
+#### 5.1.3 Make Requests
+
+Using the server created previously, we will send request to the backend. Modify the `signup` action.
+
+`actions/signup.js`
+
+```javascript
+export const signup = (formProps) => (dispatch) => {
+  axios.post('http://localhost:5000/auth/signup', formProps)
+}
+```
+
+#### 5.1.4 Wire the Action to the Component
+
+Notice that we've already wire up the `reduxForm` in `Signup.jsx`. Now we have to wire the action together using `connect`.
+
+Using the `compose` function from `redux` allows us to wire up multiple HOC in a better syntax instead of chain everything together.
+
+`Components/Signup.jsx`
+
+```jsx
+import { compose } from 'redux'
+import { connect } from 'react-redux'
+import { signup } from '../actions'
+
+class Signup extends Component {
+  // ...
+
+  onSubmit = (formProps) => {
+    this.props.signup(formProps)
+  }
+
+  // ...
+}
+
+export default compose(
+  connect(null, { signup }),
+  reduxForm({ form: 'signup' })
+)(Signup)
+```
+
+### 5.2 CORS
+
+When we try to create a new user, we encounter the CORS problem.
+
+Any `Sub Domain`, any `Domain`, any `Port` differences will trigger CORS error.
+
+To fix CORS issues, we have to install `cors` package. Then:
+
+```javascript
+app.use(cors()) // Allows request from anywhere
+```
+
+Try to sign up again. This time we would see the token.
+
+### 5.3 Display Errors
+
+First, Wrap the api calling with `try-catch` and dispatch error if any errors are caught.
+
+```javascript
+export const signup = (formProps) => async (dispatch) => {
+  try {
+    const response = await axios.post(
+      'http://localhost:5000/api/auth/signup',
+      formProps
+    )
+    dispatch({ type: AUTH_USER, payload: response.data.token })
+  } catch (error) {
+    dispatch({ type: AUTH_TYPE, payload: error.response.data.error })
+  }
+}
+```
+
+Then, use `mapStateToProps` to get access to `errorMsg` in global state. And display it.
+
+`Components/Signup.jsx`
+
+```javascript
+const mapStateToProps = (state) => ({
+  errorMsg: state.auth.errorMsg
 })
 ```
 
-### 4.4 JWT
+### 5.4 Redirect
 
-For more information, check [here](https://jwt.io/introduction).
+After a user has successfully logged in or signed up, we want to redirect the user to the feature page. To do this, we can add a callback function when we are calling `signup` action.
 
-1. When a user successfully signed in or signed up, we have to give this user an authentication rather than a `success: true`.
-
-2. To create a JWT, we are going to use a library: `jwt-simple`. Then create a method for generating. In this case, we will put this generator on top of `controllers/authentication.js`.
+`Components/Signup.jsx`
 
 ```javascript
-const jwt = require('jwt-simple')
-const config = require('../config')
-
-// sub is a convention key, meaning "Who does this token belong to", the short for 'subject'.
-// iat is another convention key, the short for 'issued at time`.
-const tokenForUser = (user) => {
-  const timestamp = +new Date()
-  return jwt.encode({ sub: user.id, iat: timestamp }, config.secret)
-}
-```
-
-3. Then instead of returning `success: true`, we will return the token.
-
-```javascript
-await user.save()
-// Respond indicating that the user has been created
-response.json({ token: tokenForUser(user) })
-```
-
-### 4.5 Decode
-
-For authenticating whether a jwt is valid, we are going to build another controller. And we also have to use two libraries: `passport` and `passport-jwt`.
-
-For every request that needs user's identification, firstly it will go through passport to verify then hand over to routes.
-
-#### 4.5.1 Config Passport
-
-`services/passport.js`
-
-```javascript
-const passport = require('passport')
-const { Strategy: JwtStrategy, ExtractJwt } = require('passport-jwt')
-const config = require('../config')
-const User = require('../models/user')
-
-// Set up options for JWT strategy
-const jwtOptions = {
-  // Tell the strategy where to look for the JWT(header, url, body, etc)
-  jwtFromRequest: ExtractJwt.fromHeader('authorization'),
-  // What key to use to decode
-  secretOrKey: config.secret
-}
-
-// Create JWT strategy
-// payload is the decoded JWT data
-const jwtLogin = new JwtStrategy(jwtOptions, (payload, done) => {
-  // The structure of payload is pretty much the same as in the tokenForUser() in authentication.js
-  User.findById(payload.sub, (error, user) => {
-    if (error) {
-      return done(error, false)
-    }
-    if (user) {
-      // If user ID in the payload exists in the db, call done() with the user object
-      done(null, user)
-    } else {
-      // Otherwise, call done() without a user object
-      done(null, false)
-    }
+onSubmit = (formProps) => {
+  this.props.signup(formProps, () => {
+    this.props.history.push('/feature')
   })
-})
-
-// Tell passport to use this strategy
-passport.use(jwtLogin)
+}
 ```
+
+And add a callback parameter to the action, and call it at the end of the request.
+
+`actions/index.js`
+
+```javascript
+export const signup = (formProps, cb) => async (dispatch) => {
+  // ...
+  cb()
+}
+```
+
+### 5.5 Auth HOC
+
+We have made an HOC in the previous sections. We can use that right away,
+
+`Components/requireAuth.jsx`
+
+```jsx
+import React, { Component } from 'react'
+import PropTypes from 'prop-types'
+
+import { connect } from 'react-redux'
+
+export default (ChildComponent) => {
+  class ComposedComponent extends Component {
+    static propTypes = {
+      auth: PropTypes.string,
+      history: PropTypes.any
+    }
+
+    componentDidMount() {
+      this.shouldNavigateAway()
+    }
+    componentDidUpdate() {
+      this.shouldNavigateAway()
+    }
+    shouldNavigateAway() {
+      if (!this.props.auth) {
+        this.props.history.push('/')
+      }
+    }
+    render() {
+      return <ChildComponent {...this.props} />
+    }
+  }
+
+  const mapStateToProps = (state) => ({
+    auth: state.auth.authenticated
+  })
+
+  return connect(mapStateToProps)(ComposedComponent)
+}
+```
+
+Then wrap `Feature` Component up with this HOC.
+
+`Components/Feature.jsx`
+
+```jsx
+import React, { Component } from 'react'
+import requireAuth from './requireAuth'
+
+class Feature extends Component {
+  render() {
+    return <div>Feature</div>
+  }
+}
+
+export default requireAuth(Feature)
+```
+
+### 5.6 Persisting Login State
+
+Even if we have stored the authentication string in redux, when we refresh the page, we still get kicked out. So we have to store this token in `localStorage`.
+
+`actions/index.js`
+
+```javascript
+dispatch({ type: AUTH_USER, payload: response.data.token })
+localStorage.setItem('token', response.data.token)
+cb()
+```
+
+We also have to check `localStorage` to see whether there is a token and put it into redux. We can do this when creating the store.
+
+`index.jsx`
+
+```javascript
+const store = createStore(
+  reducers,
+  { auth: { authenticated: localStorage.getItem('token') } },
+  applyMiddleware(reduxThunk)
+)
+```
+
+### 5.7 Log Out
+
+There are two step when a user is logging out.
+
+1. Clear localStorage.
+2. Set `authenticated` in the store to either `false` or `''`.
+
+So create a new action creator:
+
+`actions/index.js`
+
+```javascript
+export const signout = () => {
+  localStorage.removeItem('token')
+  return {
+    type: AUTH_USER,
+    payload: ''
+  }
+}
+```
+
+Put it into the `Signout` Component.
+
+`Components/Signout.jsx`
+
+```jsx
+import React, { Component } from 'react'
+import PropTypes from 'prop-types'
+
+import { connect } from 'react-redux'
+import { signout } from '../actions'
+
+class Signout extends Component {
+  static propTypes = {
+    signout: PropTypes.func
+  }
+
+  componentDidMount() {
+    this.props.signout()
+  }
+
+  render() {
+    return <div>Sorry to see you go.</div>
+  }
+}
+
+export default connect(null, { signout })(Signout)
+```
+
+### 5.8 Sign In
+
+It's quite similar to the process of sign up. So we now only focus on the code of the action creator.
+
+`actions/index.js`
+
+```javascript
+export const signin = (formProps, cb) => async (dispatch) => {
+  try {
+    const response = await axios.post(
+      'http://localhost:5000/api/auth/signin',
+      formProps
+    )
+    dispatch({ type: AUTH_USER, payload: response.data.token })
+    localStorage.setItem('token', response.data.token)
+    cb()
+  } catch (error) {
+    dispatch({ type: AUTH_ERROR, payload: error.response.data.error })
+  }
+}
+```
+
+If everything works fine, we will be redirected to the `Feature` page as soon as we log in successfully.
